@@ -1,0 +1,248 @@
+<!--
+    @title
+        index.html
+
+    @author
+        typedef
+
+    @description
+        with the GUI module removed and /luar being pushed, emenu has been changed to a web menu.
+
+        it would have better to organize this page into numerous .js files and a stylesheet page, but it's easier for the Lua script and less time-consuming for the script user (http:to_file vs http:to_file -> unzip and extract).
+-->
+<html lang="en">
+<head>
+
+    <!-- title -->
+    <title>emenu.lua</title>
+
+    <!-- stylesheet references -->
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu+Mono&display=swap" rel="stylesheet">
+
+    <!-- jquery -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+
+    <!-- basic page styling -->
+    <style>
+        body
+        {
+            background-color: #1a1a1a;
+            font-family: 'Ubuntu Mono', monospace;
+            color: white;
+        }
+
+        .to_center
+        {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #title
+        {
+            font-size: 32px;
+        }
+
+        #settings
+        {
+            font-size: 20px;
+            margin-top: 100px;
+        }
+
+        input[type=range], label {
+            vertical-align: middle;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- todo: show user avatar via getMember? -->
+    <div id="title" class="to_center">emenu.lua</div>
+
+    <!-- widget content -->
+    <div id="settings"></div>
+
+    <!-- the modal for describing each setting -->
+    <div id="modal" style="display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+        <div style="margin: 15% auto; padding: 20px; width: 50%; background: white; color: black;">
+            <p id="modal_desc"></p>
+            <button id="modal_close">Close</button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * this contains the list of settings emenu will handle. This will only consider constellation.lua settings. adding other settings will not work without modifying other functions and the emenu.lua script.
+         * @type {string[][]}
+         */
+        const settings = [
+            ["Humanizer4", "humanizer", "Toggles the Humanizer4 on/off.", "checkbox" ],
+            ["Humanizer4 Debug", "humanizer_debug", "Toggles debug logs to appear in terminal for Humanizer4.", "checkbox" ],
+            ["ESP", "esp", "Toggles Sound ESP on/off.", "checkbox" ],
+            ["Surround ESP", "esp_surround", "Toggles Surround ESP on/off.", "checkbox" ],
+            ["Sonar ESP", "esp_sonar", "Toggles Sonar ESP on/off.", "checkbox" ],
+            ["Humanizer4 Mouse Threshold", "humanizer_mouse_threshold", "Maximum amount (+-) of pixels your Humanizer can move. This can also directly change the algorithm of your Humanizer. Don't change this unless you know what you're doing.", "range", `min="1" max="75" value="35"` ],
+            ["Humanizer4 Min Range", "humanizer_range_min", "Randomization minimum threshold for the algorithm to help unpredictable mouse simulation. This can change the strength of your Humanizer. Change this value and the max value if you feel your Humanizer is too strong", "range", `min="0.1" max="5.0" value="0.1" step="0.1"` ],
+            ["Humanizer4 Max Range", "humanizer_range_max", "Randomization maximum threshold. See Humanizer4 Min Range.", "range", `min="5.0" max="12.0" value="7.0" step="0.1"` ],
+            ["Sound ESP FOV", "esp_fov", "The FOV sensitivity of your ESP.", "range", `min="0.0" max="50.0" value="16.0" step="0.1"` ],
+        ];
+
+        /**
+         * displays the modal with a description
+         * @param desc
+         */
+        function display_description( desc )
+        {
+            $("#modal_desc").html(desc);
+            $('#modal').show();
+        }
+
+        /**
+         * replaces spaces with underscores
+         * @param str
+         * @returns {*}
+         */
+        function format_setting( str )
+        {
+            return str.replace(/ /g, "_" );
+        }
+
+        /**
+         * gets the member's local configuration. see emenu.lua.
+         */
+        function reload_configuration( )
+        {
+            /**
+             * send a flag to on_http_request in emenu.lua that we want configuration values.
+             * @type {{get_config: boolean}}
+             */
+            const post_data =
+            {
+                get_config: true
+            }
+
+            /**
+             * /luar POST request to Constellation4
+             */
+            $.post("http://localhost:9283/luar", JSON.stringify(post_data) )
+                .done(function(data)
+                {
+                    /**
+                     * debug
+                     */
+                    console.log(data);
+
+                    /**
+                     * validate the configuration
+                     */
+                    const constellation_conf = data["Constellation4"]["constellation.lua"];
+                    if (!constellation_conf) {
+                        alert("Constellation4->constellation.lua configuration appears to be missing somehow. Is Constellation4 running?");
+                        return;
+                    }
+
+                    /**
+                     * loop through each configuration value in constellation.lua.
+                     *
+                     * by doing so, we are going to match the key with the `settings` value we associated with it. once we found the correct element, we will then check if it is a checkbox or a range. depending on the result, the value will change.
+                     *
+                     * this is how the configuration automatically sync your configuration upon loading.
+                     */
+                    for( const key in constellation_conf )
+                    {
+                        for( let i = 0; i < settings.length; i ++ )
+                        {
+                            if( settings[i][1] === key )
+                            {
+                                const setting_name = format_setting(settings[ i ][ 0 ]);
+                                if( settings[i][3] === "checkbox" )
+                                {
+                                    $(`#settings_${setting_name}`).prop( "checked", constellation_conf[key] );
+                                }
+                                else if( settings[i][3] === "range" )
+                                {
+                                    $(`#settings_${setting_name}`).val( constellation_conf[key] );
+
+                                    $(`#value_${setting_name}`).html( `<span id="value_${setting_name}"> (` + constellation_conf[key] + ")</span> " );
+                                }
+                            }
+                        }
+                    }
+
+                })
+                .fail(function()
+                {
+                    alert("Configuration could not be loaded. Constellation4 must be running.");
+                });
+        }
+
+        /**
+         * page ready
+         */
+        $(document).ready(function()
+        {
+            /**
+             * loop through our settings and build our widgets based on the data in the array.
+             */
+            for( let i = 0; i < settings.length; i ++ )
+            {
+                const setting_name = format_setting(settings[ i ][ 0 ]);
+                let id_settings = $("#settings");
+
+                id_settings.append(`<label for="settings_${setting_name}" id="lbl_settings_${setting_name}">
+            <input ${settings[i][4]} type="${settings[i][3]}" id="settings_${setting_name}" onchange="on_value_changed('${setting_name}', '${settings[i][1]}')"> ${settings[i][0]} <span onclick="display_description('${settings[i][2]}')">[?]</span>`);
+
+                if( settings[i][3] === "range" )
+                {
+                    id_settings.append( `<span id="value_${setting_name}"> (` + $(`#settings_${setting_name}`).attr("value") + ")</span> " );
+                }
+
+                id_settings.append("<br />");
+            }
+
+            /**
+             * update our configuration for the widgets.
+             */
+            reload_configuration();
+        });
+
+        /**
+         * updates the configuration inside Constellation4.
+         * @param setting
+         * @param config
+         */
+        function on_value_changed( setting, config )
+        {
+            let id_settings = $(`#settings_${setting}`);
+
+            /**
+             * update the value if applicable
+             */
+            $(`#value_${setting}`).html(`<span id="value_${setting}"> (` + id_settings.val() + ")</span> ");
+
+            /**
+             * send /luar POST request and demand a configuration change.
+             * @type {{name, value: (*|jQuery|string)}}
+             */
+            const post_data = {
+                name: config,
+                value: id_settings.attr("type") === "checkbox" ? id_settings.is(":checked") : id_settings.val()
+            };
+            $.post("http://localhost:9283/luar", JSON.stringify(post_data), function( data ) {
+                console.log(data);
+            });
+        }
+
+        /**
+         * hide modal
+         */
+        $('#modal_close').click(function()
+        {
+            $('#modal').hide();
+        });
+    </script>
+</body>
+
+</html>
