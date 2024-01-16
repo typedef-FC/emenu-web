@@ -50,8 +50,14 @@
             margin-top: 100px;
         }
 
-        input[type=range], label {
+        input[type=range], label
+        {
             vertical-align: middle;
+        }
+
+        #configuration_btns
+        {
+            margin-top: 20px;
         }
     </style>
 </head>
@@ -63,6 +69,14 @@
 
     <!-- widget content -->
     <div id="settings"></div>
+
+    <!-- configuration management -->
+    <div id="configuration_btns">
+        <button onclick="reload_configuration()">Reload Configuration</button>
+        <button onclick="save_configuration()">Save Configuration to Cloud</button>
+        <button onclick="reset_configuration()">Reset Cloud Configuration (Restart Solution)</button>
+        <button onclick="reload_scripts()">Reload Scripts (+Cloud Scripts)</button>
+    </div>
 
     <!-- the modal for describing each setting -->
     <div id="modal" style="display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
@@ -107,6 +121,59 @@
         function format_setting( str )
         {
             return str.replace(/ /g, "_" );
+        }
+
+        /**
+         * reloads all scripts currently loaded in Constellation4. it's also worth noting that this will also refresh the member's cloud scripts. therefore, if a member enabled a script via the Member's Panel and selected this option, they will have the new script enabled inside Constellation4.
+         */
+        function reload_scripts()
+        {
+            /**
+             * send "reload_scripts: true" to emenu.lua, indicating the request to reload all scripts. see emenu.lua to see how this is handled.
+             * @type {{save: boolean}}
+             */
+            const post_data = {
+                reload_scripts: true,
+            };
+            $.post("http://localhost:9283/luar", JSON.stringify(post_data), function( data ) {
+                console.log(data);
+            });
+        }
+
+        /**
+         * reset cloud configuration.
+         *
+         * this could be done by simply requesting "resetConfiguration" from the Web API. but it will be easier to do this in the Lua script because fantasy.session:api exists; which automatically supplies the key parameter and URL.
+         */
+        function reset_configuration()
+        {
+            /**
+             * send "reset: true" to emenu.lua, indicating the request to reset. see emenu.lua to see how this is handled.
+             * @type {{save: boolean}}
+             */
+            const post_data = {
+                reset: true,
+            };
+            $.post("http://localhost:9283/luar", JSON.stringify(post_data), function( data ) {
+                console.log(data);
+            });
+        }
+
+        /**
+         * save configuration to cloud
+         */
+        function save_configuration()
+        {
+            /**
+             * send "save: true" to emenu.lua, indicating the request to save. see emenu.lua to see how this is handled.
+             * @type {{save: boolean}}
+             */
+            const post_data = {
+                save: true,
+            };
+            $.post("http://localhost:9283/luar", JSON.stringify(post_data), function( data ) {
+                console.log(data);
+            });
         }
 
         /**
